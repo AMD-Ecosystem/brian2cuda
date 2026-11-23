@@ -32,6 +32,16 @@ def _get_runtime_version():
         return get_cuda_runtime_version()
 
 
+# Function code selects its device branch with this condition. hipcc never
+# defines __CUDA_ARCH__; its device pass defines __HIP_DEVICE_COMPILE__.
+_CUDA_DEVICE_PASS = '(defined(__CUDA_ARCH__) && (__CUDA_ARCH__ > 0))'
+
+
+def _hip_device_pass(code):
+    return code.replace(_CUDA_DEVICE_PASS,
+                        _CUDA_DEVICE_PASS + ' || defined(__HIP_DEVICE_COMPILE__)')
+
+
 logger = get_logger(__name__)
 
 
@@ -684,6 +694,11 @@ class CUDACodeGenerator(CodeGenerator):
                     '''.format(name=ns_key))
             support_code.append(deindent(funccode.get('support_code', '')))
             hash_defines.append(deindent(funccode.get('hashdefine_code', '')))
+
+        if is_hip_backend():
+            support_code = [_hip_device_pass(code) for code in support_code]
+            hash_defines = [_hip_device_pass(code) for code in hash_defines]
+            kernel_lines = [_hip_device_pass(code) for code in kernel_lines]
 
         dep_hash_defines = []
         dep_pointers = []
